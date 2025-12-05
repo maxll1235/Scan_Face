@@ -6,7 +6,7 @@
     <title>ระบบเช็คชื่อนักเรียนอัจฉริยะ</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <style>
@@ -369,21 +369,25 @@
             document.getElementById('image-upload-input').addEventListener('change', handleImageUpload);
         };
         async function initializeApp() {
-            try {
-                if (typeof faceapi === 'undefined') throw new Error('face-api.js has not been loaded.');
-                const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
-                await Promise.all([
-                    faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-                    faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-                    faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
-                ]);
-            } catch (error) {
-                console.error('Initialization failed:', error);
-                alert('ไม่สามารถโหลดโมเดล AI ได้ กรุณาลองรีเฟรชหน้าเว็บ');
-                return;
-            }
-            switchTab('dashboard');
-        }
+    try {
+        const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+
+        await Promise.all([
+            faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+            faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+        ]);
+
+        console.log("FaceAPI Models Loaded Successfully");
+
+    } catch (error) {
+        console.error('Initialization failed:', error);
+        alert('ไม่สามารถโหลดโมเดล AI ได้ กรุณารีเฟรชหน้าเว็บ');
+    }
+
+    switchTab('dashboard');
+}
+
         
         // --- UI & NAVIGATION ---
         async function switchTab(tabName) {
@@ -798,7 +802,8 @@
                     faceapi.matchDimensions(overlay, displaySize);
                     recognitionInterval = setInterval(async () => {
                         if (!isScanning) return;
-                        const detections = await faceapi.detectAllFaces(video).withFaceLandmarks().withFaceDescriptors();
+                        const detections = await faceapi.detectAllFaces(video, new faceapi.SsdMobilenetv1Options()).withFaceLandmarks().withFaceDescriptors();
+
                         const resizedDetections = faceapi.resizeResults(detections, displaySize);
                         overlay.getContext('2d').clearRect(0, 0, overlay.width, overlay.height);
                         if (faceMatcher) {
@@ -826,7 +831,7 @@
                     const labeledFaceDescriptors = await Promise.all(students.map(async (student) => {
                         if (student.imagedatabase64 && student.imagedatabase64.startsWith('data:image')) {
                             try {
-                                const img = await faceapi.fetchImage(student.imagedatabase64);
+                                const img = await faceapi.bufferToImage(await fetch(student.imagedatabase64).then(r => r.blob()));
                                 const detections = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
                                 if (detections) return new faceapi.LabeledFaceDescriptors(student.name, [detections.descriptor]);
                             } catch (e) { console.error(`Could not process image for ${student.name}`, e); }
@@ -936,7 +941,7 @@
                 tableBody.appendChild(row);
             });
         }
-       function sortStudentTable() {
+        function sortStudentTable() {
     studentSortOrder = studentSortOrder === 'asc' ? 'desc' : 'asc';
 
     students.sort((a, b) => {
@@ -948,7 +953,6 @@
 
     renderStudentTable();
 }
-
         async function handleStudentFormSubmit(event) {
             event.preventDefault();
             const submitBtn = document.getElementById('form-submit-btn');
