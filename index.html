@@ -6,7 +6,7 @@
     <title>ระบบเช็คชื่อนักเรียนอัจฉริยะ</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/vladmandic/face-api/model/"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <style>
@@ -368,26 +368,31 @@
             document.getElementById('summary-period').addEventListener('change', renderDashboard);
             document.getElementById('image-upload-input').addEventListener('change', handleImageUpload);
         };
-        async function initializeApp() {
+       async function initializeApp() {
     try {
-        const MODEL_URL = 'https://raw.githubusercontent.com/vladmandic/face-api/master/model/';
+        const MODEL_URL = "https://cdn.jsdelivr.net/gh/vladmandic/face-api/model/";
 
-        await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
-        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-        await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+        await Promise.all([
+            faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+            faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+        ]);
 
         console.log("FaceAPI Models Loaded Successfully");
+        console.log("ssd:", faceapi.nets.ssdMobilenetv1.isLoaded);
+        console.log("landmark:", faceapi.nets.faceLandmark68Net.isLoaded);
+        console.log("recognition:", faceapi.nets.faceRecognitionNet.isLoaded);
 
     } catch (error) {
-        console.error('Initialization failed:', error);
-        alert('ไม่สามารถโหลดโมเดล AI ได้ กรุณารีเฟรชหน้าเว็บ');
+        console.error("Initialization failed:", error);
+        alert("ไม่สามารถโหลดโมเดล AI ได้ กรุณารีเฟรชหน้าเว็บ");
+        return;
     }
 
-    switchTab('dashboard');
+    switchTab("dashboard");
 }
 
 
-        
         // --- UI & NAVIGATION ---
         async function switchTab(tabName) {
             stopScanning(false);
@@ -1149,32 +1154,49 @@
             try {
                 const response = await apiCall({ action: 'getAttendanceSummaryReport', data: filters });
                 if (response.success) {
-                    summaryReportData = response.data;
-                    tableBody.innerHTML = '';
+    const { summary, lineData } = response.data || {};
 
-                    if (summaryReportData.summary.length === 0) {
-                        tableBody.innerHTML = `<tr><td colspan="7" class="text-center p-8 text-gray-500">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</td></tr>`;
-                        return;
-                    }
-                    
-                    summaryReportData.summary.forEach(item => {
-                        const totalAttendance = item.present + item.absent + item.leave;
-                        const attendancePercent = totalAttendance > 0 ? ((item.present / totalAttendance) * 100).toFixed(2) : "0.00";
-                        const row = document.createElement('tr');
-                        row.className = 'summary-row cursor-pointer';
-                        row.onclick = () => showStudentDetail(item.class, item.subject);
-                        row.innerHTML = `
-                            <td class="p-3">${item.class}</td>
-                            <td class="p-3 font-medium">${item.subject}</td>
-                            <td class="p-3 text-center">${item.totalStudents}</td>
-                            <td class="p-3 text-center text-green-600">${item.present}</td>
-                            <td class="p-3 text-center text-red-600">${item.absent}</td>
-                            <td class="p-3 text-center text-yellow-600">${item.leave}</td>
-                            <td class="p-3 text-center font-bold">${attendancePercent}%</td>`;
-                        tableBody.appendChild(row);
-                    });
-                    document.getElementById('export-excel-btn').classList.remove('hidden');
-                } else {
+    // ป้องกัน lineData ไม่มีใน response
+    lastReportDataForLine = Array.isArray(lineData) ? lineData : [];
+
+    reportTableBody.innerHTML = '';
+    if (!summary || summary.length === 0) {
+        reportTableBody.innerHTML = `
+            <tr><td colspan="8" class="text-center p-8 text-gray-500">
+                ไม่พบข้อมูลตามเงื่อนไขที่เลือก
+            </td></tr>`;
+        linePreview.innerHTML = '<p class="text-gray-500">ไม่พบข้อมูล</p>';
+        return;
+    }
+
+    summary.forEach(item => {
+        const row = `
+            <tr>
+                <td class="p-3 text-left">${item.class}</td>
+                <td class="p-3 text-left">${item.subject}</td>
+                <td class="p-3 text-center">${item.totalStudents}</td>
+                <td class="p-3 text-center">${item.present}</td>
+                <td class="p-3 text-center">${item.absent}</td>
+                <td class="p-3 text-center">${item.leave}</td>
+                <td class="p-3 text-center font-bold">${item.totalPresent}</td>
+                <td class="p-3 text-center font-bold">${item.attendancePercent}%</td>
+            </tr>`;
+        reportTableBody.innerHTML += row;
+    });
+
+    linePreview.innerHTML =
+        lastReportDataForLine.length > 0
+            ? lastReportDataForLine
+                .map(d => `<div>${d.date} | ${d.class} | ${d.subject} | ${d.id} ${d.name} | ${d.status}</div>`)
+                .join('')
+            : '<p class="text-gray-500">ไม่มีนักเรียนที่ขาดหรือลา</p>';
+
+    document.getElementById('report-title').innerText =
+        `ผลลัพธ์สำหรับวันที่ ${new Date(reportData.dateFilter).toLocaleDateString('th-TH')}`;
+
+    sendLineBtn.disabled = lastReportDataForLine.length === 0;
+}
+else {
                     throw new Error(response.error);
                 }
             } catch (err) {
