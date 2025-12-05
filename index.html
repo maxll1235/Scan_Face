@@ -936,19 +936,19 @@
                 tableBody.appendChild(row);
             });
         }
-        function sortStudentTable() {
-            studentSortOrder = studentSortOrder === 'asc' ? 'desc' : 'asc';
-            students.sort((a, b) => {
-                const idA = a.studentid;
-                const idB = b.studentid;
-                if (studentSortOrder === 'asc') {
-                    return idA.localeCompare(idB, undefined, {numeric: true});
-                } else {
-                    return idB.localeCompare(idA, undefined, {numeric: true});
-                }
-            });
-            renderStudentTable();
-        }
+       function sortStudentTable() {
+    studentSortOrder = studentSortOrder === 'asc' ? 'desc' : 'asc';
+
+    students.sort((a, b) => {
+        const idA = parseInt(a.studentid) || 0;
+        const idB = parseInt(b.studentid) || 0;
+
+        return studentSortOrder === 'asc' ? idA - idB : idB - idA;
+    });
+
+    renderStudentTable();
+}
+
         async function handleStudentFormSubmit(event) {
             event.preventDefault();
             const submitBtn = document.getElementById('form-submit-btn');
