@@ -1054,25 +1054,37 @@
             }
         }
         async function sendReportToLine() {
-            if (!lastReportDataForLine) {
-                alert('กรุณาสร้างรายงานก่อนส่ง');
-                return;
-            }
-            
-            const btn = document.getElementById('send-line-btn');
-            btn.disabled = true;
-            btn.querySelector('span').innerText = 'กำลังส่ง...';
+    if (!lastReportDataForLine || lastReportDataForLine.length === 0) {
+        alert('กรุณาสร้างรายงานก่อนส่ง');
+        return;
+    }
 
-            try {
-                const response = await apiCall({ action: 'sendLineNotification', data: lastReportDataForLine });
-                alert(response.message);
-            } catch(err) {
-                 alert(`เกิดข้อผิดพลาดรุนแรงในการส่ง LINE: ${err.message}`);
-            } finally {
-                btn.disabled = false;
-                btn.querySelector('span').innerText = 'ส่งรายงานเข้า LINE';
-            }
-        }
+    const btn = document.getElementById('send-line-btn');
+    btn.disabled = true;
+    btn.querySelector('span').innerText = 'กำลังส่ง...';
+
+    try {
+        const response = await apiCall({
+            action: 'sendLineNotification',
+            data: lastReportDataForLine
+        });
+
+        console.log("LINE Response:", response);
+
+        alert(
+            response.success
+                ? (response.message || "ส่งรายงานสำเร็จ")
+                : (response.error || "ส่งรายงานล้มเหลว")
+        );
+
+    } catch (err) {
+        alert(`เกิดข้อผิดพลาดรุนแรงในการส่ง LINE: ${err.message}`);
+    } finally {
+        btn.disabled = false;
+        btn.querySelector('span').innerText = 'ส่งรายงานเข้า LINE';
+    }
+}
+
 
         // --- SUMMARY REPORT & SCORING ---
         function loadDataForSummaryFilters() {
