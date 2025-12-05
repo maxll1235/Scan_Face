@@ -1042,7 +1042,7 @@
     const { summary, lineData } = response.data || {};
     // ป้องกันกรณี server ไม่ส่ง lineData มา
     lastReportDataForLine = Array.isArray(lineData) ? lineData : [];
-    ...
+    
     // ถ้าอยากให้ปุ่มเปิดได้เฉพาะเมื่อมีข้อมูลที่ส่งได้:
     document.getElementById('send-line-btn').disabled = lastReportDataForLine.length === 0;
 }
