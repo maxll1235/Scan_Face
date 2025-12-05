@@ -424,28 +424,37 @@
         
         // --- DATA LOADING ---
         async function apiCall(payload) {
-            if (!gasWebAppUrl) {
-                alert('กรุณาตั้งค่า Google Apps Script URL ก่อน โดยการรีเฟรชหน้าเว็บ');
-                return { success: false, error: 'GAS URL not configured' };
-            }
-            try {
-                const response = await fetch(gasWebAppUrl, {
-                    method: 'POST',
-                    mode: 'cors',
-                    redirect: 'follow',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify(payload)
-                });
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return await response.json();
-            } catch (error) {
-                console.error('API Call Error:', error);
-                alert(`เกิดข้อผิดพลาดในการเชื่อมต่อกับ Server:\n${error.message}`);
-                return { success: false, error: error.message };
-            }
+    if (!gasWebAppUrl) {
+        alert('กรุณาตั้งค่า Google Apps Script URL ก่อน โดยการรีเฟรชหน้าเว็บ');
+        return { success: false, error: 'GAS URL not configured' };
+    }
+    try {
+        const response = await fetch(gasWebAppUrl, {
+            method: 'POST',
+            mode: 'cors',
+            redirect: 'follow',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
+        });
+
+        // ถ้า status ไม่ ok ให้ลองอ่าน text เพื่อ debug
+        const text = await response.text();
+
+        // พยายามแปลงเป็น JSON
+        try {
+            const json = JSON.parse(text);
+            return json;
+        } catch (e) {
+            // ไม่ใช่ JSON — คืนค่าเป็นข้อความ
+            return text;
         }
+    } catch (error) {
+        console.error('API Call Error:', error);
+        alert(`เกิดข้อผิดพลาดในการเชื่อมต่อกับ Server:\n${error.message}`);
+        return { success: false, error: error.message };
+    }
+}
+
         
         async function loadStudentData() {
             const rosterLoading = document.getElementById('roster-loading');
@@ -1029,6 +1038,15 @@
                         return;
                     }
 
+                    if (response.success) {
+    const { summary, lineData } = response.data || {};
+    // ป้องกันกรณี server ไม่ส่ง lineData มา
+    lastReportDataForLine = Array.isArray(lineData) ? lineData : [];
+    ...
+    // ถ้าอยากให้ปุ่มเปิดได้เฉพาะเมื่อมีข้อมูลที่ส่งได้:
+    document.getElementById('send-line-btn').disabled = lastReportDataForLine.length === 0;
+}
+
                     summary.forEach(item => {
                         const row = `<tr>
                                 <td class="p-3 text-left">${item.class}</td>
@@ -1054,36 +1072,56 @@
             }
         }
         async function sendReportToLine() {
-    if (!lastReportDataForLine || lastReportDataForLine.length === 0) {
-        alert('กรุณาสร้างรายงานก่อนส่ง');
+    // ป้องกันกรณี undefined / null / empty
+    if (!lastReportDataForLine || !Array.isArray(lastReportDataForLine) || lastReportDataForLine.length === 0) {
+        alert('กรุณาสร้างรายงานก่อนส่ง (ไม่มีข้อมูลสำหรับส่ง)');
         return;
     }
 
     const btn = document.getElementById('send-line-btn');
-    btn.disabled = true;
-    btn.querySelector('span').innerText = 'กำลังส่ง...';
+    if (btn) {
+        btn.disabled = true;
+        // ถ้ามี span
+        const span = btn.querySelector('span');
+        if (span) span.innerText = 'กำลังส่ง...';
+    }
 
     try {
-        const response = await apiCall({
-            action: 'sendLineNotification',
-            data: lastReportDataForLine
-        });
+        const response = await apiCall({ action: 'sendLineNotification', data: lastReportDataForLine });
 
-        console.log("LINE Response:", response);
+        // log เพื่อวิเคราะห์ ข้อผิดพลาด
+        console.log('sendLineNotification response:', response);
 
-        alert(
-            response.success
-                ? (response.message || "ส่งรายงานสำเร็จ")
-                : (response.error || "ส่งรายงานล้มเหลว")
-        );
-
+        // รองรับหลายรูปแบบ response (object / text / boolean)
+        if (!response) {
+            alert('ไม่มีการตอบกลับจากเซิร์ฟเวอร์ (response is null)');
+        } else if (typeof response === 'string') {
+            alert(response);
+        } else if (typeof response === 'object') {
+            // หาก server ส่ง { success: true/false, message, error }
+            if ('success' in response) {
+                alert(response.success ? (response.message || 'ส่งรายงานสำเร็จ') : (response.error || 'ส่งรายงานล้มเหลว'));
+            } else if ('message' in response) {
+                alert(response.message || 'ได้รับการตอบกลับจากเซิร์ฟเวอร์');
+            } else {
+                // ถ้าโครงสร้างอื่น ๆ แสดงเป็น JSON ง่าย ๆ
+                alert('ตอบกลับ: ' + JSON.stringify(response));
+            }
+        } else {
+            alert('ตอบกลับจากเซิร์ฟเวอร์ (ไม่รู้จักรูปแบบ): ' + String(response));
+        }
     } catch (err) {
-        alert(`เกิดข้อผิดพลาดรุนแรงในการส่ง LINE: ${err.message}`);
+        console.error('Error sending to LINE:', err);
+        alert(`เกิดข้อผิดพลาดร้ายแรงในการส่ง LINE: ${err && err.message ? err.message : err}`);
     } finally {
-        btn.disabled = false;
-        btn.querySelector('span').innerText = 'ส่งรายงานเข้า LINE';
+        if (btn) {
+            btn.disabled = false;
+            const span = btn.querySelector('span');
+            if (span) span.innerText = 'ส่งรายงานเข้า LINE';
+        }
     }
 }
+
 
 
         // --- SUMMARY REPORT & SCORING ---
