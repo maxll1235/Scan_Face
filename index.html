@@ -370,13 +370,11 @@
         };
         async function initializeApp() {
     try {
-        const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+        const MODEL_URL = 'https://raw.githubusercontent.com/vladmandic/face-api/master/model/';
 
-        await Promise.all([
-            faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-            faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
-        ]);
+        await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
 
         console.log("FaceAPI Models Loaded Successfully");
 
@@ -387,6 +385,7 @@
 
     switchTab('dashboard');
 }
+
 
         
         // --- UI & NAVIGATION ---
@@ -802,8 +801,7 @@
                     faceapi.matchDimensions(overlay, displaySize);
                     recognitionInterval = setInterval(async () => {
                         if (!isScanning) return;
-                        const detections = await faceapi.detectAllFaces(video, new faceapi.SsdMobilenetv1Options()).withFaceLandmarks().withFaceDescriptors();
-
+                        const detections = await faceapi.detectAllFaces(video, new faceapi.SsdMobilenetv1Options()).withFaceLandmarks() .withFaceDescriptors();
                         const resizedDetections = faceapi.resizeResults(detections, displaySize);
                         overlay.getContext('2d').clearRect(0, 0, overlay.width, overlay.height);
                         if (faceMatcher) {
